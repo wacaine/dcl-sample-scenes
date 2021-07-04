@@ -23,6 +23,8 @@ Thank you to everyone who voted!  The enhancements to this smart item were made 
 If you can think of an example that is easy to understand and covers valuable topics that aren't covered here, you're encouraged to create a **Pull Request** and [contribute](https://github.com/decentraland-scenes/Awesome-Repository/blob/master/CONTRIBUTING.md)!
 -->
 
+[Toolbox CE can be downloaded from here under releases](https://github.com/wacaine/dcl-smart-items-ce)
+
 If something doesn’t work, please [file an issue](https://github.com/wacaine/dcl-smart-items-ce/issues/new).
 
 ## Builder Buggyness
