@@ -1,0 +1,45 @@
+{
+  "display": {
+    "title": "Smart Items Toolbox CE",
+    "favicon": "favicon_asset",
+    "navmapThumbnail": "scene-thumbnail.png"
+  },
+  "owner": "",
+  "contact": {
+    "name": "DecentralandGod",
+    "email": ""
+  },
+  "main": "bin/game.js",
+  "tags": [],
+  "scene": {
+    "parcels": [
+      "-63,-28"
+    ],
+    "base": "-63,-28"
+  },
+  "communications": {
+    "type": "webrtc",
+    "signalling": "https://signalling-01.decentraland.org"
+  },
+  "policy": {
+    "contentRating": "E",
+    "fly": true,
+    "voiceEnabled": true,
+    "blacklist": [],
+    "teleportPosition": ""
+  },
+  "source": {
+    "version": 1,
+    "origin": "builder",
+    "projectId": "77318ec4-638b-4543-a727-688f51b371ce",
+    "point": {
+      "x": 0,
+      "y": 0
+    },
+    "rotation": "north",
+    "layout": {
+      "rows": 1,
+      "cols": 1
+    }
+  }
+}
