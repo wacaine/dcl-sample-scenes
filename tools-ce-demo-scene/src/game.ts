@@ -12,6 +12,7 @@ import Script9 from "../a491051c-8092-4245-ae85-d274e90d8443/src/item"
 import Script10 from "../1ab2733f-1782-4521-9eda-6aa8ad684277/src/item"
 import Script11 from "../4c9fa249-97ec-4f32-8fb8-b96f69ba8892/src/item"
 import Script12 from "../b88efbbf-2a9a-47b4-86e1-e38ecc2b433b/src/item"
+import Script13 from "../1889bcdc-5608-48fa-9158-b0a56f0afa8b/src/item"
 
 const _scene = new Entity('_scene')
 engine.addEntity(_scene)
@@ -25,7 +26,7 @@ _scene.addComponentOrReplace(transform)
 const entity = new Entity('entity')
 engine.addEntity(entity)
 entity.setParent(_scene)
-const gltfShape = new GLTFShape("models/FloorBaseGrass_01/FloorBaseGrass_01.glb")
+const gltfShape = new GLTFShape("da1fed3c954172146414a66adfa134f7a5e1cb49c902713481bf2fe94180c2cf/FloorBaseGrass_01/FloorBaseGrass_01.glb")
 gltfShape.withCollisions = true
 gltfShape.isPointerBlocker = true
 gltfShape.visible = true
@@ -56,7 +57,7 @@ const transform4 = new Transform({
   scale: new Vector3(1, 1, 1)
 })
 goldenPigStatue.addComponentOrReplace(transform4)
-const gltfShape2 = new GLTFShape("models/ChineseStatuePig_02/ChineseStatuePig_02.glb")
+const gltfShape2 = new GLTFShape("2c97339f9cfc9fdcf406db8f49ea81e892c76a4a3be439c18cea7fa9e745987a/ChineseStatuePig_02/ChineseStatuePig_02.glb")
 gltfShape2.withCollisions = true
 gltfShape2.isPointerBlocker = true
 gltfShape2.visible = true
@@ -71,7 +72,7 @@ const transform5 = new Transform({
   scale: new Vector3(1, 1, 1)
 })
 ballDroid.addComponentOrReplace(transform5)
-const gltfShape3 = new GLTFShape("models/Droid_01/Droid_01.glb")
+const gltfShape3 = new GLTFShape("d7de8ccc10ef72c4b2b0eaedf69e62144996092c52d75821a852176b55f01d47/Droid_01/Droid_01.glb")
 gltfShape3.withCollisions = true
 gltfShape3.isPointerBlocker = true
 gltfShape3.visible = true
@@ -86,7 +87,7 @@ const transform6 = new Transform({
   scale: new Vector3(1, 1, 1)
 })
 cat.addComponentOrReplace(transform6)
-const gltfShape4 = new GLTFShape("models/HWN20_Cat.glb")
+const gltfShape4 = new GLTFShape("f68700c47b3e7d186929a9d83c301dfa3e1486094c512f7b0728666bc1d4d1d1/HWN20_Cat.glb")
 gltfShape4.withCollisions = true
 gltfShape4.isPointerBlocker = true
 gltfShape4.visible = true
@@ -321,7 +322,7 @@ const transform29 = new Transform({
   scale: new Vector3(4.086261749267578, 1.0000035762786865, 2.26238751411438)
 })
 floorGlassSmall.addComponentOrReplace(transform29)
-const gltfShape5 = new GLTFShape("models/GlassFloor_Small.glb")
+const gltfShape5 = new GLTFShape("4def355ba2c32abb0ffe6b88d23b288b5f5f821045983741045345061c6dab96/GlassFloor_Small.glb")
 gltfShape5.withCollisions = true
 gltfShape5.isPointerBlocker = true
 gltfShape5.visible = true
@@ -408,7 +409,7 @@ const transform37 = new Transform({
   scale: new Vector3(1.2514530420303345, 1.096909761428833, 1.2092292308807373)
 })
 floorLightDisc.addComponentOrReplace(transform37)
-const gltfShape6 = new GLTFShape("models/Light_04/Light_04.glb")
+const gltfShape6 = new GLTFShape("98124c57726d0c6494443c3dc5f5cf732b32e768cd2bbf181a76955da9d30649/Light_04/Light_04.glb")
 gltfShape6.withCollisions = true
 gltfShape6.isPointerBlocker = true
 gltfShape6.visible = true
@@ -505,7 +506,7 @@ const transform46 = new Transform({
   scale: new Vector3(0.4524703323841095, 1.0000046491622925, 0.07333078235387802)
 })
 zebraCrossing.addComponentOrReplace(transform46)
-const gltfShape7 = new GLTFShape("models/Zebra_Crossing.glb")
+const gltfShape7 = new GLTFShape("878fad5fbba168d3b63830b6fcd9484052cd9190fecaa5c8b9bdb49e3951d283/Zebra_Crossing.glb")
 gltfShape7.withCollisions = true
 gltfShape7.isPointerBlocker = true
 gltfShape7.visible = true
@@ -520,7 +521,7 @@ const transform47 = new Transform({
   scale: new Vector3(1.5, 1.5, 1.5)
 })
 pumpkin.addComponentOrReplace(transform47)
-const gltfShape8 = new GLTFShape("models/HWN20_Pumpkin_02.glb")
+const gltfShape8 = new GLTFShape("7f93ab7f6993d174aa816dd42f40b721241df9fab4c081b23c8fa292c199bd02/HWN20_Pumpkin_02.glb")
 gltfShape8.withCollisions = true
 gltfShape8.isPointerBlocker = true
 gltfShape8.visible = true
@@ -535,7 +536,7 @@ const transform48 = new Transform({
   scale: new Vector3(0.5190301537513733, 0.5, 0.9809712171554565)
 })
 orangeGhost.addComponentOrReplace(transform48)
-const gltfShape9 = new GLTFShape("models/HWN20_YellowGhost.glb")
+const gltfShape9 = new GLTFShape("4a394778010f5542a1ec90271c20291fafe1608d35da4ea31b99d942b9edc8c4/HWN20_YellowGhost.glb")
 gltfShape9.withCollisions = true
 gltfShape9.isPointerBlocker = true
 gltfShape9.visible = true
@@ -855,7 +856,7 @@ const transform79 = new Transform({
   scale: new Vector3(1.9568222761154175, 1.137558937072754, 2.051353693008423)
 })
 ringBlueLight.addComponentOrReplace(transform79)
-const gltfShape10 = new GLTFShape("models/Ring_Blue_Light.glb")
+const gltfShape10 = new GLTFShape("00dffffac541613ed9805427d805a935ebd8d8ce7e0990cbb80289e30c07a534/Ring_Blue_Light.glb")
 gltfShape10.withCollisions = true
 gltfShape10.isPointerBlocker = true
 gltfShape10.visible = true
@@ -1001,7 +1002,7 @@ const transform93 = new Transform({
   scale: new Vector3(0.5797351598739624, 0.012845641002058983, 1.2384437322616577)
 })
 bazaarTent.addComponentOrReplace(transform93)
-const gltfShape11 = new GLTFShape("models/Tent_02/Tent_02.glb")
+const gltfShape11 = new GLTFShape("e3a61a33d946efc238c8feeec66213cf884e8e1d36ca550adb2adc4f5807d886/Tent_02/Tent_02.glb")
 gltfShape11.withCollisions = true
 gltfShape11.isPointerBlocker = true
 gltfShape11.visible = true
@@ -1080,7 +1081,7 @@ const transform100 = new Transform({
   scale: new Vector3(1, 1, 1)
 })
 crow.addComponentOrReplace(transform100)
-const gltfShape12 = new GLTFShape("models/HWN20_Crow.glb")
+const gltfShape12 = new GLTFShape("3eb22042b14f3578161c1dfc682f54ba43f9979c12ce8bab18ee2c893e045982/HWN20_Crow.glb")
 gltfShape12.withCollisions = true
 gltfShape12.isPointerBlocker = true
 gltfShape12.visible = true
@@ -1106,7 +1107,7 @@ const transform102 = new Transform({
   scale: new Vector3(1, 1, 1)
 })
 glass.addComponentOrReplace(transform102)
-const gltfShape13 = new GLTFShape("models/glass.glb")
+const gltfShape13 = new GLTFShape("50131923e14ed26cca4626faee6609c4107eb684dce0443c71378c2cfdf8d1dd/glass.glb")
 gltfShape13.withCollisions = true
 gltfShape13.isPointerBlocker = true
 gltfShape13.visible = true
@@ -2062,7 +2063,7 @@ const transform194 = new Transform({
   scale: new Vector3(13.236702919006348, 19.8301944732666, 27.65752410888672)
 })
 spider.addComponentOrReplace(transform194)
-const gltfShape14 = new GLTFShape("models/HWN20_Spider_03.glb")
+const gltfShape14 = new GLTFShape("0b8535c8e43f8107338d38ed828f49b1ff791a1e58ba0a9fc25c2542d9fd9aab/HWN20_Spider_03.glb")
 gltfShape14.withCollisions = true
 gltfShape14.isPointerBlocker = true
 gltfShape14.visible = true
@@ -2460,9 +2461,9 @@ const plainText67 = new Entity('plainText67')
 engine.addEntity(plainText67)
 plainText67.setParent(_scene)
 const transform233 = new Transform({
-  position: new Vector3(15.5, 13.982295989990234, 9.547232627868652),
+  position: new Vector3(15.357463836669922, 13.982295989990234, 9.547232627868652),
   rotation: new Quaternion(-1.0567964636720717e-7, -0.7730105519294739, -0.6343932151794434, 8.940696005765858e-8),
-  scale: new Vector3(1.0000016689300537, 1.0000026226043701, 1.0000028610229492)
+  scale: new Vector3(1.000002145767212, 1.0000027418136597, 1.0000029802322388)
 })
 plainText67.addComponentOrReplace(transform233)
 
@@ -2654,7 +2655,7 @@ const transform251 = new Transform({
   scale: new Vector3(0.4999999403953552, 0.5, 0.4999999701976776)
 })
 hummingbird.addComponentOrReplace(transform251)
-const gltfShape15 = new GLTFShape("models/hummingbird.glb")
+const gltfShape15 = new GLTFShape("7e427abb-29f5-486f-9ea1-71d412009091/hummingbird.glb")
 gltfShape15.withCollisions = true
 gltfShape15.isPointerBlocker = true
 gltfShape15.visible = true
@@ -2664,9 +2665,9 @@ const blackButton46 = new Entity('blackButton46')
 engine.addEntity(blackButton46)
 blackButton46.setParent(_scene)
 const transform252 = new Transform({
-  position: new Vector3(11, 0.5212550163269043, 1.5),
+  position: new Vector3(12.5, 0.5212550163269043, 2),
   rotation: new Quaternion(-0.7071068286895752, 1.5394153601527394e-15, 8.429369557916289e-8, 0.7071068286895752),
-  scale: new Vector3(1, 1.0000014305114746, 1.0000014305114746)
+  scale: new Vector3(1, 1.000002145767212, 1.000002145767212)
 })
 blackButton46.addComponentOrReplace(transform252)
 
@@ -2674,9 +2675,9 @@ const blackButton17 = new Entity('blackButton17')
 engine.addEntity(blackButton17)
 blackButton17.setParent(_scene)
 const transform253 = new Transform({
-  position: new Vector3(12, 0.5212550163269043, 1.5),
+  position: new Vector3(13.5, 0.5212550163269043, 2),
   rotation: new Quaternion(-0.7071068286895752, 1.5394153601527394e-15, 8.429369557916289e-8, 0.7071068286895752),
-  scale: new Vector3(1, 1.0000016689300537, 1.0000016689300537)
+  scale: new Vector3(1, 1.000002384185791, 1.000002384185791)
 })
 blackButton17.addComponentOrReplace(transform253)
 
@@ -2714,7 +2715,7 @@ const triggerArea11 = new Entity('triggerArea11')
 engine.addEntity(triggerArea11)
 triggerArea11.setParent(_scene)
 const transform257 = new Transform({
-  position: new Vector3(8, 13, 9.5),
+  position: new Vector3(7.991885185241699, 13, 9.355093955993652),
   rotation: new Quaternion(0, 0, 0, 1),
   scale: new Vector3(15.831865310668945, 2.607731580734253, 12.928991317749023)
 })
@@ -2751,6 +2752,26 @@ const transform260 = new Transform({
 })
 toggleButton14.addComponentOrReplace(transform260)
 
+const yellowButton = new Entity('yellowButton')
+engine.addEntity(yellowButton)
+yellowButton.setParent(_scene)
+const transform261 = new Transform({
+  position: new Vector3(12.5, 0, 0.5),
+  rotation: new Quaternion(0, 0, 0, 1),
+  scale: new Vector3(1, 1, 1)
+})
+yellowButton.addComponentOrReplace(transform261)
+
+const plainText71 = new Entity('plainText71')
+engine.addEntity(plainText71)
+plainText71.setParent(_scene)
+const transform262 = new Transform({
+  position: new Vector3(12.8958101272583, 0.17374572157859802, 0.3121941089630127),
+  rotation: new Quaternion(-0.6343933343887329, -2.8796886653026377e-8, 5.199258268362428e-8, 0.7730104327201843),
+  scale: new Vector3(1, 1, 0.9999997019767761)
+})
+plainText71.addComponentOrReplace(transform262)
+
 const channelId = Math.random().toString(16).slice(2)
 const channelBus = new MessageBus()
 const inventory = createInventory(UICanvas, UIContainerStack, UIImage)
@@ -2768,6 +2789,7 @@ const script9 = new Script9()
 const script10 = new Script10()
 const script11 = new Script11()
 const script12 = new Script12()
+const script13 = new Script13()
 script1.init(options)
 script2.init(options)
 script3.init(options)
@@ -2780,6 +2802,7 @@ script9.init(options)
 script10.init(options)
 script11.init(options)
 script12.init(options)
+script13.init(options)
 script1.spawn(blackButton, {"onClick":[{"entityName":"toolboxCE","actionId":"facePlayer","values":{"target":"goldenPigStatue","curve":"easeinoutexpo","speed":10,"onComplete":[{"entityName":"toolboxCE","actionId":"facePlayer","values":{"target":"cat","curve":"easeinoutsine","speed":10,"onComplete":[]}}]}},{"entityName":"toolboxCE","actionId":"facePlayer","values":{"target":"spider","curve":"linear","speed":10,"onComplete":[{"entityName":"toolboxCE","actionId":"facePlayer","values":{"target":"ballDroid","curve":"easeoutbounce","speed":10,"onComplete":[]}}]}},{"entityName":"toolboxCE","actionId":"facePlayer","values":{"target":"crow","curve":"easeinoutbounce","speed":10,"onComplete":[]}},{"entityName":"toolboxCE","actionId":"facePlayer","values":{"target":"hummingbird","curve":"linear","speed":10,"onComplete":[{"entityName":"toolboxCE","actionId":"facePlayer","values":{"target":"pumpkin","curve":"easeinoutbounce","speed":10,"onComplete":[]}}]}}]}, createChannel(channelId, blackButton, channelBus))
 script2.spawn(toolboxCE, {"toolboxVersion":"1.0.0","loggingLevel":"DEBUG"}, createChannel(channelId, toolboxCE, channelBus))
 script1.spawn(blackButton3, {"onClick":[{"entityName":"toolboxCE","actionId":"faceItem","values":{"target":"goldenPigStatue","targetOfInterest":"pumpkin","curve":"linear","speed":10,"onComplete":[]}}]}, createChannel(channelId, blackButton3, channelBus))
@@ -2952,11 +2975,13 @@ script1.spawn(blackButton45, {"onClick":[{"entityName":"toolboxCE","actionId":"m
 script9.spawn(indicatorArrowGree9, {"active":false}, createChannel(channelId, indicatorArrowGree9, channelBus))
 script5.spawn(plainText68, {"text":"this row move-relative","font":"SF","color":"#FFFFFF"}, createChannel(channelId, plainText68, channelBus))
 script5.spawn(plainText69, {"text":"this row move to item (green arrow above)","font":"SF","color":"#FFFFFF"}, createChannel(channelId, plainText69, channelBus))
-script1.spawn(blackButton46, {"onClick":[{"entityName":"toolboxCE","actionId":"animate","values":{"target":"hummingbird","animAction":"play","animation":"look","speed":0.8,"loop":false,"layer":1}}]}, createChannel(channelId, blackButton46, channelBus))
-script1.spawn(blackButton17, {"onClick":[{"entityName":"toolboxCE","actionId":"faceItem","values":{"lockMode":"quaternion","lockX":false,"lockY":false,"lockZ":false,"curve":"linear","repeatAction":"none","trackingType":"current","speed":1,"onComplete":[]}}]}, createChannel(channelId, blackButton17, channelBus))
+script1.spawn(blackButton46, {"onClick":[{"entityName":"toolboxCE","actionId":"moveToPlayer","values":{"target":"blackButton46","lockX":false,"lockY":false,"lockZ":false,"moveNoCloserThan":0,"percentOfDistanceToTravel":100,"curve":"linear","repeatAction":"none","speed":9,"onComplete":[]}},{"entityName":"toolboxCE","actionId":"facePlayer","values":{"target":"blackButton46","lockMode":"quaternion","lockX":false,"lockY":false,"lockZ":false,"curve":"linear","repeatAction":"none","speed":9,"onComplete":[]}}]}, createChannel(channelId, blackButton46, channelBus))
+script1.spawn(blackButton17, {"onClick":[{"entityName":"toolboxCE","actionId":"moveToPlayer","values":{"target":"blackButton17","lockX":false,"lockY":false,"lockZ":false,"moveNoCloserThan":1,"percentOfDistanceToTravel":100,"curve":"linear","repeatAction":"none","speed":9,"onComplete":[]}}]}, createChannel(channelId, blackButton17, channelBus))
 script1.spawn(blackButton49, {"onClick":[{"entityName":"toggleButton13","actionId":"activate","values":{}},{"entityName":"toggleButton12","actionId":"activate","values":{}}]}, createChannel(channelId, blackButton49, channelBus))
 script8.spawn(toggleButton12, {"onActivate":[{"entityName":"toolboxCE","actionId":"animate","values":{"target":"hummingbird","animAction":"play","animation":"look","speed":1,"loop":true,"layer":0}}],"onDeactivate":[{"entityName":"toolboxCE","actionId":"animate","values":{"target":"hummingbird","animAction":"pause","animation":"look","speed":1,"loop":true,"layer":0}}]}, createChannel(channelId, toggleButton12, channelBus))
 script8.spawn(toggleButton13, {"onActivate":[{"entityName":"toolboxCE","actionId":"animate","values":{"target":"hummingbird","animAction":"play","animation":"fly","speed":1,"loop":true,"layer":1}}],"onDeactivate":[{"entityName":"toolboxCE","actionId":"animate","values":{"target":"hummingbird","animAction":"pause","animation":"fly","speed":1,"loop":true,"layer":1}}]}, createChannel(channelId, toggleButton13, channelBus))
 script10.spawn(triggerArea11, {"enabled":true,"onEnter":[{"entityName":"toolboxCE","actionId":"sceneAddRemove","values":{"targets":"plainText(44|45|46|47|48|49|50|51|52|56|57|58|59|60|61|62|63|64|65|65|66|67)","sceneAddRemove":"add","multiplayer":false}}],"onLeave":[{"entityName":"toolboxCE","actionId":"sceneAddRemove","values":{"targets":"plainText(44|45|46|47|48|49|50|51|52|56|57|58|59|60|61|62|63|64|65|65|66|67)","sceneAddRemove":"remove","multiplayer":false}}]}, createChannel(channelId, triggerArea11, channelBus))
 script5.spawn(plainText70, {"text":"show/hide","font":"SF","color":"#FFFFFF"}, createChannel(channelId, plainText70, channelBus))
 script8.spawn(toggleButton14, {"onActivate":[{"entityName":"toolboxCE","actionId":"sceneShowHide","values":{"target":"glass29","sceneHideShow":"hide","multiplayer":true}}],"onDeactivate":[{"entityName":"toolboxCE","actionId":"sceneShowHide","values":{"target":"glass29","sceneHideShow":"show","multiplayer":true}}]}, createChannel(channelId, toggleButton14, channelBus))
+script13.spawn(yellowButton, {"onClick":[{"entityName":"toolboxCE","actionId":"facePlayer","values":{"target":"yellowButton","lockMode":"quaternion","lockX":false,"lockY":false,"lockZ":false,"curve":"linear","repeatAction":"none","speed":10,"onComplete":[]}},{"entityName":"toolboxCE","actionId":"moveToPlayer","values":{"target":"yellowButton","lockX":false,"lockY":false,"lockZ":false,"moveNoCloserThan":0,"percentOfDistanceToTravel":100,"curve":"linear","repeatAction":"none","speed":10,"onComplete":[]}}]}, createChannel(channelId, yellowButton, channelBus))
+script5.spawn(plainText71, {"text":"Face/Move \nTo Player","font":"SF","color":"#FFFFFF"}, createChannel(channelId, plainText71, channelBus))
