@@ -1,7 +1,7 @@
 import {
   TweenSystem,TweenSystemMove,TweenSystemRotate,TweenSystemScale,
   Tweenable,TweenableMove,TweenableRotate,TweenableScale,
-  RepeatActionType,SceneChangeAddRmType,
+  RepeatActionType,SceneChangeAddRmType,TrackingActionType,TargetOfInterestType,
   Tween,
   Syncable,
   TweenType,
@@ -10,11 +10,19 @@ import {
   RotateData,
   TweenableVO,
 } from './tween'
+import { getEntityByName,getEntityBy,computeFaceAngle,computeMoveVector } from './utils'
+import { Logger,jsonStringifyActions,jsonStringifyActionsFull,jsonStringifyTweenable,LOGGING_CONF, LoggerLevel } from './logging'
 import { setTimeout, DelaySystem } from './delay'
-import { Animated, AnimType } from './animation'
+import { AnimatedData, Animated, AnimType } from './animation'
 import { getEntityWorldPosition, getEntityWorldRotation } from './decentralandecsutils/helpers/helperfunctions'
+//import { movePlayerTo } from '@decentraland/RestrictedActions'
 
-export type Props = {}
+const VERSION = "1.1.2-beta1"
+const ITEM_FULL_NAME = "Toolbox-CE v." + VERSION
+
+export type Props = {
+  loggingLevel?: LoggerLevel
+}
 
 type DelayValues = {
   timeout: number
@@ -33,6 +41,15 @@ type AnimationValues = {
   speed: number
   loop: boolean
   animation?: string
+  layer?: number
+}
+
+type SyncAnimated = { //TODO must change to list of anims
+  type: AnimType
+  name: string
+  speed: number
+  loop: boolean
+  layer: number
 }
 
 type SyncEntityTween = 
@@ -57,6 +74,11 @@ type SyncEntityTween =
     enabled: boolean
     numberOfSegments: number//for PathData and RotationData
     turnToFaceNext: boolean//for PathData and RotationData
+    trackingType: TrackingActionType
+    targetOfInterest: string
+    targetOfInterestType: TargetOfInterestType
+    percentOfDistanceToTravel:number //need for 'follow'
+    moveNoCloserThan:number //need for 'follow'
     pathOriginIndex: number//for PathData and RotationData
     //TODO MUST ADD CURRENT PARENT?!?!
     //controlMode: string  enabled will handle it???? or must emit this removal?
@@ -80,12 +102,7 @@ type SyncEntity = {
   tweenMove?: SyncEntityTween
   tweenRotate?: SyncEntityTween
   tweenScale?: SyncEntityTween
-  anim?: {
-    type: AnimType
-    name: string
-    speed: number
-    loop: boolean
-  }
+  animData?: Record<string,SyncAnimated>;
 }
 
 function clone(x)
@@ -124,11 +141,6 @@ log("onSceneReadyObservable: "+onSceneReadyObservableExists)
 
 let tempLastHost = null;
 
-const getEntityByName = (name: string) =>
-  Object.keys(engine.entities)
-    .map((key) => engine.entities[key])
-    .filter((entity) => (entity as Entity).name === name)[0]
-
 //taken from https://github.com/decentraland/decentraland-ecs-utils/blob/master/src/helpers/helperfunctions.ts
 
 
@@ -139,13 +151,13 @@ export default class Tools implements IScript<Props> {
   removedEntities: Record<string, IEntity> = {}
   canvas = new UICanvas()
   container: UIContainerStack
-  debugEnabled: false //TODO allow configuing of this
 
   tweenSystem = new TweenSystem(Tweenable)
   tweenSystemMove = new TweenSystemMove()
   tweenSystemRotate = new TweenSystemRotate()
   tweenSystemScale = new TweenSystemScale()
   delaySystem = new DelaySystem()
+  logger = new Logger("Toolbox",{})
 
   getContainer = () => {
     if (!this.container) {
@@ -160,19 +172,22 @@ export default class Tools implements IScript<Props> {
     return this.container
   }
   init() {
-    const version = "1.0.0.alpha"
-    log("Toolbox-CE version " + version + " initializing... " )
+    const METHOD_NAME = "init"
+    this.logger.log(METHOD_NAME,ITEM_FULL_NAME  + " initializing... ",null )
     //tweenSystem = new TweenSystem()
     //engine.addSystem(this.tweenSystem)
     engine.addSystem(this.tweenSystemMove)
     engine.addSystem(this.tweenSystemRotate)
     engine.addSystem(this.tweenSystemScale)
     engine.addSystem(this.delaySystem)
-    log("Toolbox-CE version " + version + " initializing DONE " )
+
+    //fetch world clock?
+
+    this.logger.log(METHOD_NAME,ITEM_FULL_NAME + " initializing DONE ",null )
   }
 
   getEntities() {
-    //must union hidden in
+    //must union in removed entities
     return this.tweenSystem.syncableGroup.entities as Entity[]
   }
   
@@ -189,7 +204,6 @@ export default class Tools implements IScript<Props> {
         entity.removeComponent(component)
       }
     }
-    //TODO MUST EMIT???
   }
 
   adjustForSceneRotation(playerPosition:Vector3,entity:IEntity){
@@ -225,109 +239,13 @@ export default class Tools implements IScript<Props> {
     }
   }
 
-  computeFaceAngle(lookAtTarget:Vector3,transform:Transform,lockMode:string,lockX:boolean,lockY:boolean,lockZ:boolean) {
-   let lockW = false
   
-    //START TESTING TO DETECT SDK
-
-    //no help
-    //froom builder
-    //0,0:  facePlayer player rotate test:0.7933533402912352 3.727588677399492e-17 0.6087614290087207 4.85788814390261e-17 vs 0.7933533402912352 3.727588677399492e-17 0.6087614290087207 4.85788814390261e-17
-    //from local
-    //      facePlayer player rotate test:0.7933533402912352 3.727588677399492e-17 -0.6087614290087207 4.85788814390261e-17 vs 0.7933533402912352 3.727588677399492e-17 0.6087614290087207 4.85788814390261e-17
-
-    let transformTemp = new Transform({
-      rotation: Quaternion.Euler(180, 0, 0),//was y=75
-    })
-    transformTemp.rotate(Vector3.Up(), 75)
-  
-    let eulerTransform = Quaternion.Euler(180, 75, 0);
-    let euler2StageRotate = transformTemp.rotation
-  
-    //compare rotations
-    log("computeFaceAngle rotate test:" 
-      + eulerTransform.x + " " + eulerTransform.y + " " + eulerTransform.z + " " + eulerTransform.w
-      + " vs "
-      + euler2StageRotate.x + " " + euler2StageRotate.y + " " + euler2StageRotate.z + " " + euler2StageRotate.w )
-    //END TESTIN SDK DETECTION
-
-    
-    let direction = lookAtTarget.subtract(transform.position)
-    let endRotation:Quaternion = Quaternion.Slerp(
-      transform.rotation,
-      Quaternion.LookRotation(direction),
-      1
-    )
-    if(lockX||lockY||lockZ){
-      let canUseEuler = lockMode != null && lockMode == 'euler';
-
-      const endRotationEuler:Vector3 = endRotation.clone().eulerAngles;//.clone().eulerAngles
-
-      if(canUseEuler){ //tthe builder is running sub 6.6.4 (6.6.3 i think) and has bug with euler angle conversion
-        let startingRotationEuler:Vector3 = transform.rotation.eulerAngles;
-        
-        if(lockX) endRotationEuler.x=startingRotationEuler.x
-        if(lockY) endRotationEuler.y=startingRotationEuler.y
-        if(lockZ) endRotationEuler.z=startingRotationEuler.z
-        //if(lockW) endRotationEuler.z=transform.rotation.w //consider converting lock vectors to euler then passing back q more user friendly
-        //no work right in lower 6.6.4
-
-        //let transformTemp = new Transform({
-        //  rotation: Quaternion.Euler(endRotationEuler.x, 0, 0),//was y=75
-        //})
-        //transformTemp.rotate(Vector3.Up(), endRotationEuler.y)
-        //transformTemp.rotate(Vector3.Forward(), endRotationEuler.z)
-        
-        endRotation = Quaternion.Euler(endRotationEuler.x,endRotationEuler.y,endRotationEuler.z)
-
-        //endRotation = transformTemp.rotation
-      }else{ //works in builder but not sure this is valid rotation lock logic
-        if(lockX) endRotation.x=transform.rotation.x
-        if(lockY) endRotation.y=transform.rotation.y
-        if(lockZ) endRotation.z=transform.rotation.z
-        if(lockW) endRotation.w=transform.rotation.w //consider converting lock vectors to euler then passing back q more user friendly
-      }
-    }
-    return endRotation;
-  }
-
-  computeMoveVector(start:Vector3,endDest:Vector3,lockX:boolean,lockY:boolean,lockZ:boolean,percentOfDistanceToTravel:float,moveNoCloserThan:float){
-    //Math.min(noCloserThanPercentage,percentDistance)
-    let distanceWhole = Vector3.Distance(start, endDest)
-    let distanceDelta = distanceWhole;
-
-    if(moveNoCloserThan){
-      distanceDelta=distanceWhole-moveNoCloserThan;
-    }
-    
-    let endDestOrig=new Vector3().copyFrom(endDest)
-
-    if(percentOfDistanceToTravel===undefined){
-      percentOfDistanceToTravel = 1;
-    }
-    if(percentOfDistanceToTravel > 1){
-      percentOfDistanceToTravel = percentOfDistanceToTravel/100
-    }
-
-    let percentStopDistToUse = 1;
-    if(distanceDelta < 0){
-      percentStopDistToUse = 0
-      //dont move
-      endDest = start.clone();
-    }else if(distanceWhole > 0){
-      percentStopDistToUse = distanceDelta/distanceWhole;
-      percentStopDistToUse = Math.min(percentStopDistToUse,percentOfDistanceToTravel);
-      endDest = Vector3.Lerp(start, endDest, percentStopDistToUse)
-
-      if(lockX) endDest.x=start.x
-      if(lockY) endDest.y=start.y
-      if(lockZ) endDest.z=start.z
-    }
-    log("computeMoveVector " + start + " " + endDestOrig + " " + percentOfDistanceToTravel + " " + moveNoCloserThan + " " + distanceDelta + " returning " + endDest);
-    return endDest;
-  }
   spawn(host: Entity, props: Props, channel: IChannel) {
+    LOGGING_CONF.level = props.loggingLevel
+    log(ITEM_FULL_NAME + " logging level set to " + LOGGING_CONF.level )
 
+    const logger = new Logger("Toolbox",{channelId:channel.id})
+    if(logger.isTraceEnabled()) logger.trace( "spawn","ENTRY",[host,props,channel] )
     /*
 if(props.clickable){
       voxter.getEntity().addComponent(
@@ -356,27 +274,78 @@ if(props.clickable){
     }
     */
     channel.handleAction<Tween>('sceneAddRemove', (action) => {
-      const { target, sceneAddRemove, ...tween } = action.values
-      log("sceneAddRemove called " + target + " to " + sceneAddRemove)
-      let entity = getEntityByName(target)
-      if(sceneAddRemove=='add'&&entity==null&&this.removedEntities[target]!=null){
-        entity=this.removedEntities[target]
+      const { target,targets, sceneAddRemove, ...tween } = action.values
+      const METHOD_NAME = "channel.handle.sceneAddRemove"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "called " + jsonStringifyActions(action) + " " + target + "/" + targets + " action " + sceneAddRemove,null)
+      if(!tween.multiplayer && action.sender != channel.id){
+        if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "called for " + " " + target + "/" + targets + " is not me " + channel.id + " so skipping" ,null)
+        return;
       }
-      if (entity && entity !== undefined && sceneAddRemove == 'remove') {
-        engine.removeEntity(entity);
-        this.removedEntities[target]=entity;
-      }else if(entity && sceneAddRemove=='add'){
-        engine.addEntity(entity);
-        delete this.removedEntities[target];
+
+      const targetList = createTargetList(target, targets)
+
+      for(const p in targetList){
+        const targetItm = targetList[p]
+        const entities:IEntity[] = getEntityBy(targetItm,this.removedEntities)
+        //scan the removed ones too
+        
+        for(const p in entities){
+          let entity = entities[p]
+          
+          if (entity && entity !== undefined && sceneAddRemove == 'remove') {
+            engine.removeEntity(entity);
+            this.removedEntities[(entity as Entity).name]=entity;
+          }else if(entity && sceneAddRemove=='add'){
+            engine.addEntity(entity);
+            delete this.removedEntities[(entity as Entity).name];
+          }else if(!entity){
+            if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + targetItm + " for action " + sceneAddRemove,null)
+          }
+        }
       }
-      //todo add logging when cannot find object?!?!
+      channel.sendActions(tween.onComplete)
+      
+    } )
+    channel.handleAction<Tween>('sceneShowHide', (action) => {
+      const { target,targets, sceneAddRemove, ...tween } = action.values
+      const METHOD_NAME = "channel.handle.sceneShowHide"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "called " + jsonStringifyActions(action) + " " + target + "/" + targets + " action " + sceneAddRemove,null)
+      if(!tween.multiplayer && action.sender != channel.id){
+        if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "called for " + " " + target + "/" + targets + " is not me " + channel.id + " so skipping" ,null)
+        return;
+      }
+
+      const targetList = createTargetList(target, targets)
+
+      for(const p in targetList){
+        const targetItm = targetList[p]
+        const entities:IEntity[] = getEntityBy(targetItm)
+        for(const p in entities){
+          let entity = entities[p]
+      
+          if (entity && entity !== undefined && sceneAddRemove == 'remove') {
+            engine.removeEntity(entity);
+            this.removedEntities[targetItm]=entity;
+          }else if(entity && sceneAddRemove=='add'){
+            engine.addEntity(entity);
+            delete this.removedEntities[targetItm];
+          }else if(!entity){
+            if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + targetItm + " for action " + sceneAddRemove,null)
+          }
+        }
+      }
       channel.sendActions(tween.onComplete)
     } )
     channel.handleAction<Tween>('attachToItem', (action) => {
-      const { target, targetOfInterest,attachToOrigin, ...tween } = action.values
-      log("attachToItem called " + target + " to " + targetOfInterest + " attachOrigin:" + attachToOrigin)
+      const { target, attachToOrigin, ...tween } = action.values
+      const METHOD_NAME = "channel.handle.attachToItem"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "called " + jsonStringifyActions(action) + " " + target + " to " + tween.targetOfInterest + " attachOrigin:" + attachToOrigin, null)
+
       const entityToAttach = getEntityByName(target)
-      const entityTarget = getEntityByName(targetOfInterest)
+      const entityTarget = getEntityByName(tween.targetOfInterest)
       if (entityToAttach && entityTarget) {
         const transformParent = entityTarget.getComponent(Transform)
         const transformChild = entityToAttach.getComponent(Transform)
@@ -387,8 +356,8 @@ if(props.clickable){
 
 
         let onSceneReadyObservableExists = typeof onSceneReadyObservable !== 'undefined'
-        log("onSceneReadyObservable ")
-        log("onSceneReadyObservable: "+onSceneReadyObservableExists)
+        //log("onSceneReadyObservable ")
+        //log("onSceneReadyObservable: "+onSceneReadyObservableExists)
 
         if(attachToOrigin){
           let msg = "target origin pos before " + transformChild.position.x + " " + transformChild.position.y + " " + transformChild.position.z
@@ -410,7 +379,6 @@ if(props.clickable){
               transformChild.scale = transformChild.scale.divide(transformParent.scale)  
           log(msg + "| after " + transformChild.position.x + " " + transformChild.position.y + " " + transformChild.position.z)
           //TODO handle preserve scale, preserve rotation
-          //transformChild.scale = transformChild.scale.divide(transformParent.scale)
         }else{
           //does not seem to help 6.3.3  probably cuz setting rotation!?!?!
           log(" ABS utilsDelay fired in glass.ts holdding pre 0 then set for " + target)
@@ -419,13 +387,11 @@ if(props.clickable){
               //TODO ADD multiply by scale
               vectorPos = vectorPos.clone().rotate(parentRotation.conjugate()).divide(transformParent.scale)
 
-              log("vectorPos rotate " + vectorPos);
-                  //transformParent.position.subtract(transformAttach.position)
-
               //vectorPos = 
               transformParent.position.subtract(
-                transformChild.position.clone().rotate(parentRotation))
+              transformChild.position.clone().rotate(parentRotation))
               
+                //FIXME must hold its old parent
               tempLastHost = entityTarget.getParent()
               log("last parent " + tempLastHost.name);
               transformChild.position = vectorPos
@@ -433,18 +399,24 @@ if(props.clickable){
               transformChild.rotation = transformChild.rotation.multiply(parentRotation.conjugate())
               transformChild.scale = transformChild.scale.divide(transformParent.scale)
               entityToAttach.setParent(entityTarget);
-          
         }
         
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entityToAttach + " and/or " + tween.targetOfInterest  + " " + entityTarget,null)
       }
+
       channel.sendActions(tween.onComplete)
     } )
+
     channel.handleAction<Tween>('detachFromItem', (action) => {
-      const { target, targetOfInterest, ...tween } = action.values
-      log("detachFromItem called " + target + " from " + targetOfInterest)
-      
+      const { target,  ...tween } = action.values
+
+      const METHOD_NAME = "channel.handle.detachFromItem"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + target + " from " + tween.targetOfInterest , null)
+
       const entityToDetach = getEntityByName(target)
-      const entityTarget = getEntityByName(targetOfInterest)
+      const entityTarget = getEntityByName(tween.targetOfInterest)
       if (entityToDetach && entityTarget) {
         //must grab old value to put back
         let transformChild = entityToDetach.getComponent(Transform)
@@ -452,31 +424,32 @@ if(props.clickable){
         //TODO only detatch if is its parent
         log("last parent " + tempLastHost.name);
         
-        let parentRotation = entityTarget.hasComponent(Transform)
-          ? entityTarget.getComponent(Transform).rotation
-          : Quaternion.Identity
-          
-        //returns 0 every time?!?!
-        //transformDetach.rotation.multiplyInPlace( transformTarget.rotation ) ;//getEntityWorldRotation(entityToDetach) );//transformTarget.rotation );
-        //transformDetach.rotation = getEntityWorldRotation(entityToDetach);//transformTarget.rotation );
-        transformChild.rotation = getEntityWorldRotation(entityToDetach);//transformChild.rotation.multiply(parentRotation)
+        transformChild.rotation = getEntityWorldRotation(entityToDetach);
           
         log("rotation " + transformChild.eulerAngles);
 
         //drops position well
         transformChild.position = getEntityWorldPosition(entityToDetach)
+        //TODO can we push this into getEntityWorldPosition?
+        this.adjustForSceneRotation(transformChild.position,entityToDetach)
+
         transformChild.scale = transformChild.scale.multiply(transformParent.scale)
-        
+        //FIXME must hold its old parent
         entityToDetach.setParent(tempLastHost)
         
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entityToDetach + " and/or " + tween.targetOfInterest  + " " + entityTarget,null)
       }
       channel.sendActions(tween.onComplete)
     } )
     
+    //TODO make followVectorPath. see commit a32591b for asset.json stuff
     channel.handleAction<Tween>('followItemPath', (action) => {
-      
-      const { target, returnToFirst,numberOfSegments,turnToFaceNext,lockX,lockY,lockZ,lockW,pathItem1,pathItem2,pathItem3,pathItem4,pathItem5, ...tween } = action.values
-      log("followItemPath called " + target + " sender " + action.sender + " ent name " + action.entityName)
+      const { target , ...tween } = action.values
+
+      const METHOD_NAME = "channel.handle.followItemPath"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + target + "  " + " (" + tween.pathItem1 +","+ tween.pathItem2 +","+tween.pathItem3 +","+tween.pathItem4 +","+tween.pathItem5 +")" , null)
 
       const sender = action.sender
       const entity = getEntityByName(target)
@@ -485,24 +458,23 @@ if(props.clickable){
         const currentTime: number = +Date.now()
         let transform = entity.getComponent(Transform)
 
-        log("followItemPath called")
         // how many points on the curve
-        let curvePoints = Math.max(1,numberOfSegments)
-        let closeLoop = returnToFirst
+        let curvePoints = Math.max(1,tween.numberOfSegments)
+        let closeLoop = tween.returnToFirst
 
         // Compile these points into an array
         const cpoints = new Array()
 
-        let pathItems = new Array();
-        pathItems.push(pathItem1)
-        pathItems.push(pathItem2)
-        pathItems.push(pathItem3)
-        pathItems.push(pathItem4)
-        pathItems.push(pathItem5)
+        let pathItems = [tween.pathItem1,tween.pathItem2,tween.pathItem3,tween.pathItem4,tween.pathItem5]
 
         //hacking using var to create signatureOfVectors
         let cpointsSignatureHack = new Vector3()
         
+        //add current position of item
+        cpoints.push(new Vector3().copyFrom(transform.position))//why must it be second and not first?!?!?
+        cpointsSignatureHack.addInPlace(cpoints[cpoints.length-1])
+
+        //loop over item paths
         for(var x=0;x<pathItems.length;x++){
           let itmName = pathItems[x];
 
@@ -512,19 +484,13 @@ if(props.clickable){
           }
           let pathEnt = getEntityByName(itmName);
           
-          if(cpoints.length==0){//somehow linked to closeLoop
-          //if((!closeLoop && cpoints.length==0) || (closeLoop && cpoints.length==0)){//somehow linked to closeLoop
-            log("follow path " + x +" adding self to path " + target +  " point.len "+cpoints.length);
-            cpoints.push(new Vector3().copyFrom(transform.position))//why must it be second and not first?!?!?
-            cpointsSignatureHack.addInPlace(cpoints[cpoints.length-1])
-          }
           if(pathEnt && pathEnt !== undefined){
             log("follow path " + x +" adding " + itmName + " point.len "+cpoints.length);
             cpoints.push(new Vector3().copyFrom(pathEnt.getComponent(Transform).position));
             cpointsSignatureHack.addInPlace(cpoints[cpoints.length-1])
+          }else{
+            if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + itmName + " for action " + itmName + " for index " + x,null)
           }
-          
-          
         }
 
         tween.x=cpointsSignatureHack.x
@@ -545,28 +511,21 @@ if(props.clickable){
             existingTweenble.y === action.values.y &&
             existingTweenble.z === action.values.z
           ) {
-            log("OOTB follow-path same tween already in progress? " + action.sender + " " + action.actionId + " " + action.entityName + " " + target + " " + tween.x + " " + tween.y + " " + tween.z)
-            //return
+            if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "action matching parameters already in progress. ignoring this one. existing tween:" + jsonStringifyTweenable(existingTweenble) + " new action " + jsonStringifyActions(action),null)
+            return
           }
         }
 
-        // Create a Catmull-Rom Spline curve. This curve passes through all 4 points. The total number of points in the path is set by  `curvePoints`
-        //let catmullPath = Curve3.CreateCatmullRomSpline(cpoints, curvePoints, closeLoop).getPoints()
-
-        //tween.curvePath = catmullPath;
-        //must construct path to follow
-        
         let entityTransform = null;
         if(entity.hasComponent(Transform)){
           entityTransform = entity.getComponent(Transform)
         }else{
-          log("follow-path " + target + " does not have Transform?!?!")
+          if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  target + " does not have Transform?!?!",null)
         }
 
         const origin = entityTransform.position.clone()
         const originQ:Quaternion=entityTransform.rotation.clone();
         const tweenable = new TweenableMove({
-          //const tweenable = new Tweenable({
           ...tween,
           type: 'follow-path',
           channel,
@@ -576,40 +535,54 @@ if(props.clickable){
           curvePoints: cpoints,
           curveNBPoints: curvePoints,
           curveCloseLoop: closeLoop,
-          numberOfSegments: numberOfSegments,
-          turnToFaceNext: turnToFaceNext,
+          numberOfSegments: tween.numberOfSegments,
+          turnToFaceNext: tween.turnToFaceNext,
           timestamp: currentTime,
         })
-        //TODO must scan path to shift array based on point 1 a curvepath will not pick vector 1 first always
+        
+        if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "adding Tweenable Component to " + target + " " + jsonStringifyTweenable(tweenable),null)
         entity.addComponentOrReplace(new PathData(cpoints,curvePoints,closeLoop,origin))
-        if(turnToFaceNext){
-          entity.addComponentOrReplace(new RotateData(originQ,lockX,lockY,lockZ,lockW))
+        if(tween.turnToFaceNext){
+          entity.addComponentOrReplace(new RotateData(originQ,tween.lockX,tween.lockY,tween.lockZ,tween.lockW))
         }
         entity.addComponentOrReplace(tweenable)
         entity.addComponentOrReplace(new Syncable())
         
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entity,null)
       }
     })
     channel.handleAction<Tween>('tweenControlAction', (action) => {
-      const { target, controlMode,tweenControlMove,tweenControlRotate,tweenControlScale, ...tween } = action.values
-      log("tweenControlAction called " + target + "  " + controlMode + " (" + tweenControlMove +","+ tweenControlRotate +","+tweenControlScale +")")
+      const { target, ...tween } = action.values
+
+      const METHOD_NAME = "channel.handle.tweenControlAction"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + target + "  " + tween.controlMode + " (" + tween.tweenControlMove +","+ tween.tweenControlRotate +","+tween.tweenControlScale +")" , null)
       
+      //TODO check to see if doing already if possible
       const entity = getEntityByName(target)
       if (entity && entity !== undefined) {
-        if(tweenControlMove && entity.hasComponent(TweenableMove)){
-          this.processControlAction('move',entity,controlMode,TweenableMove)
+        if(tween.tweenControlMove && entity.hasComponent(TweenableMove)){
+          this.processControlAction('move',entity,tween.controlMode,TweenableMove)
         }
-        if(tweenControlRotate && entity.hasComponent(TweenableRotate)){
-          this.processControlAction('rotate',entity,controlMode,TweenableRotate)
+        if(tween.tweenControlRotate && entity.hasComponent(TweenableRotate)){
+          this.processControlAction('rotate',entity,tween.controlMode,TweenableRotate)
         }
-        if(tweenControlScale && entity.hasComponent(TweenableScale)){
-          this.processControlAction('scale',entity,controlMode,TweenableScale)
+        if(tween.tweenControlScale && entity.hasComponent(TweenableScale)){
+          this.processControlAction('scale',entity,tween.controlMode,TweenableScale)
         }
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entity,null)
       }
+
+      channel.sendActions(action.values.onComplete)
     } )
     channel.handleAction<Tween>('moveToPlayer', (action) => {
-      const { target,percentOfDistanceToTravel,moveNoCloserThan,lockX,lockY,lockZ, ...tween } = action.values
+      const { target, ...tween } = action.values
 
+      const METHOD_NAME = "channel.handle.moveToPlayer"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + action.values.target + " -> player " + action.sender , null)
       
       const entityToMove = getEntityByName(target)
       
@@ -632,115 +605,134 @@ if(props.clickable){
         log("moveToPlayer  called " + action.sender + " " + channel.id + " " + action.actionId + " " + action.entityName 
         + " " + target + " " + tween.x + " " + tween.y + " " + tween.z + " | " + endDest.x + " " + endDest.y + " " + endDest.z)
 
+        endDest = computeMoveVector(transformTarget.position,endDest,tween.lockX,tween.lockY,tween.lockZ,tween.percentOfDistanceToTravel,tween.moveNoCloserThan);
         
-        //let endPos:Vector3 = transformEnd.position
-          
-        endDest = this.computeMoveVector(transformTarget.position,endDest,lockX,lockY,lockZ,percentOfDistanceToTravel,moveNoCloserThan);
-        
-        let clonedAction = clone(action);
+        let clonedValues = clone(action.values);
+        if(!clonedValues.targetOfInterest){
+          clonedValues.targetOfInterest = action.sender
+        }else{
+          log("moveToPlayer had sender already " + action.sender + " " + clonedValues.targetOfInterest + " " + channel.id)
+        }
+        clonedValues.targetOfInterestType = 'player'
 
         //set direction to where the item is
-        clonedAction.values.relative = false
-        clonedAction.values.x = endDest.x;
-        clonedAction.values.y = endDest.y;
-        clonedAction.values.z = endDest.z;
+        clonedValues.relative = false
+        clonedValues.x = endDest.x;
+        clonedValues.y = endDest.y;
+        clonedValues.z = endDest.z;
         
-        clonedAction.actionId = "move"
 
-        log("moveToPlayer  cloneCheck " + action.actionId + " " + clonedAction.actionId)
-
-        //channel.createAction("move",action.values)
-        
-        if(clonedAction.values.onComplete && clonedAction.values.onComplete.length > 0){
+        if(clonedValues.onComplete && clonedValues.onComplete.length > 0){
           //can we x,y,z to start??? so dont hhvae to have extra value? but then must know action intent
           //rename to senderPosition
-          log("clonedAction.onComplete[0] " + clonedAction.values.onComplete[0].actionId )
-          clonedAction.values.onComplete[0].values.playerPosition=playerPosition
+          log("clonedAction.onComplete[0] " + clonedValues.onComplete[0].actionId )
+          clonedValues.onComplete[0].values.playerPosition=playerPosition
         }
         
-        channel.sendActions(
-          [clonedAction]
-        )
+        const clonedAction = channel.createAction("move",clonedValues)
+
+        log("moveToPlayer  cloneCheck " + action.actionId + " " + clonedAction.actionId)
+        
+        
+        //send move so everyone else gets it
+        channel.sendActions( [clonedAction] )
+      }else if(!entityToMove){
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entityToMove,null)
       }else{
-        log("moveToPlayer called " + action.sender + " was not me " + channel.id + " so skipping" )
+        if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "moveToPlayer called by " + action.sender + ".  Is not me " + channel.id + " so skipping",null)
       }
     })
 
     channel.handleAction<Tween>('moveToItem', (action) => {
-      log("moveToItem called " + action.sender + " " + action.actionId + " " + action.entityName + " " + action.values.target + " -> " + action.values.targetOfInterest)
-      const { target, targetOfInterest,percentOfDistanceToTravel,moveNoCloserThan,lockX,lockY,lockZ, ...tween } = action.values
+      const { target, ...tween } = action.values 
+
+      const METHOD_NAME = "channel.handle.moveToItem"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + action.values.target + " -> " + action.values.targetOfInterest, null)
 
       const entityToMove = getEntityByName(target)
-      const entityDest = getEntityByName(targetOfInterest)
+      const entityDest = getEntityByName(tween.targetOfInterest)
+      //FIXME?? add if (action.sender === channel.id) { since it chains?? or dont chain action calls and do all work here
       if (entityDest && entityToMove) {
         let transformTarget = entityToMove.getComponent(Transform)
         let transformEnd = entityDest.getComponent(Transform)
 
-        let endPos:Vector3 = transformEnd.position
         let endDest:Vector3 = transformEnd.position
 
-        endDest = this.computeMoveVector(transformTarget.position,endDest,lockX,lockY,lockZ,percentOfDistanceToTravel,moveNoCloserThan);
+        endDest = computeMoveVector(transformTarget.position,endDest,tween.lockX,tween.lockY,tween.lockZ,tween.percentOfDistanceToTravel,tween.moveNoCloserThan);
 
+        let clonedValues = clone(action.values);
         //set direction to where the item is
-        action.values.relative = false
-        action.values.x = endDest.x;
-        action.values.y = endDest.y;
-        action.values.z = endDest.z;
-
-        //log("moveToItem called dist: stopPercent:" + percentStopDistToUse + " " + distanceWhole + " vs " + distancePartial + "; "   + transformEnd.position.x + " " + transformEnd.position.y + " " + transformEnd.position.z + " vs" + endDest.x + " " + endDest.y + " " + endDest.z)
+        clonedValues.relative = false
+        clonedValues.x = endDest.x;
+        clonedValues.y = endDest.y;
+        clonedValues.z = endDest.z;
+ 
+        if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "moveToItem called dist: target:" + target + " " + tween.trackingType +  "; stopPercent:" + tween.percentOfDistanceToTravel 
+                +  "; moveNoCloserThan:" + ".vs."+tween.moveNoCloserThan + ";"   + transformEnd.position.x + " " + transformEnd.position.y + " " + transformEnd.position.z + " vs " + endDest.x + " " + endDest.y + " " + endDest.z, null)
         
-        action.actionId = "move"
+        const clonedAction = channel.createAction("move",clonedValues)
 
-        //channel.createAction("move",action.values)
-        
-        channel.sendActions(
-          [action]
-        )
+        //TODO establish origin state here incase out of sync?
+
+        channel.sendActions( [clonedAction] )
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entityToMove + " and/or " + tween.targetOfInterest  + " " + entityDest,null)
       }
     })
 
     channel.handleAction<Tween>('faceItem', (action) => {
-      log("faceItem called")
-      const { target, targetOfInterest,lockMode,lockX,lockY,lockZ,lockW, ...tween } = action.values
+      const { target, lockMode,lockX,lockY,lockZ,lockW, ...tween } = action.values
+
+      const METHOD_NAME = "channel.handle.faceItem"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + action.values.target + " -> " + action.values.targetOfInterest, null)
+
 
       const entity = getEntityByName(target)
-      const entityLookAt = getEntityByName(targetOfInterest)
+      const entityLookAt = getEntityByName(tween.targetOfInterest)
+      //FIXME?? add if (action.sender === channel.id) { since it chains?? or dont chain action calls and do all work here
       if (entity && entity !== undefined) {
         let transform = entity.getComponent(Transform)
         let lookAtTransform = entityLookAt.getComponent(Transform)
         // Rotate to face the player
-        let lookAtTarget = new Vector3(lookAtTransform.position.x, lookAtTransform.position.y, lookAtTransform.position.z)
+        let lookAtTarget = new Vector3().copyFrom(lookAtTransform.position)
         
-        let endRotation:Quaternion = this.computeFaceAngle(lookAtTarget,transform,lockMode,lockX,lockY,lockZ);
-        //const endRotationEuler:Vector3 = endRotation.clone().eulerAngles;//.clone().eulerAngles
+        let endRotation:Quaternion = computeFaceAngle(lookAtTarget,transform,lockMode,lockX,lockY,lockZ);
 
+        let clonedValues = clone(action.values);
         //Quaternion.Euler
         //set direction to where the item is
-        action.values.x = endRotation.x;
-        action.values.y = endRotation.y;
-        action.values.z = endRotation.z;
-        action.values.w = endRotation.w; //use euler anges if change action id to rotate
+        clonedValues.x = endRotation.x;
+        clonedValues.y = endRotation.y;
+        clonedValues.z = endRotation.z;
+        clonedValues.w = endRotation.w; //use euler anges if change action id to rotate
         //clonedAction.values.destPosition = lookAtTarget;
         
         //action.values.destPosition = lookAtTarget;
 
-        action.actionId = "rotate-q" //is rotate-q needed if we can trust eulerAngles conversion?
+        const clonedAction = channel.createAction("rotate-q",clonedValues)
 
-        channel.sendActions([action])
+        channel.sendActions([clonedAction])
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entity + " and/or " + tween.targetOfInterest  + " " + entityLookAt,null)
       }
     })
     
 
     channel.handleAction<Tween>('facePlayer', (action) => {
       const { target,lockMode,lockX,lockY,lockZ,lockW, ...tween } = action.values
-      log("facePlayer called " + target + " " + action.sender + " vs " + channel.id)
+
+      const METHOD_NAME = "channel.handle.facePlayer"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + target + "  face player " + action.sender + " vs " + channel.id, null)
+
       if (action.sender === channel.id) {
         const entity = getEntityByName(target)
 
-        
-        //log("entPar " +engine.rootEntity.g)
-
         if (entity && entity !== undefined) {
+          //FIXME add a already doing this check
+
           //set direction to where the player is
           let transform = entity.getComponent(Transform)
           // Rotate to face the player
@@ -754,56 +746,53 @@ if(props.clickable){
           
           this.adjustForSceneRotation(playerPosition,entity);
 
-          log("facePlayer player:" + player.position.x + " " + player.position.y + " " + player.position.z 
-            +" obj:" + transform.position.x + " " + transform.position.y + " " + transform.position.z )
-          
           let lookAtTarget = playerPosition;
           
-            let clonedAction = clone(action);
+          let clonedValues = clone(action.values);
+        
+          let endRotation:Quaternion = computeFaceAngle(lookAtTarget,transform,lockMode,lockX,lockY,lockZ);
+          //const endRotationEuler:Vector3 = endRotation.clone().eulerAngles;//.clone().eulerAngles
           
-            
-          let endRotation:Quaternion = this.computeFaceAngle(lookAtTarget,transform,lockMode,lockX,lockY,lockZ);
-          const endRotationEuler:Vector3 = endRotation.clone().eulerAngles;//.clone().eulerAngles
-          
-          
-          if(true){
-            //set direction to where the item is
-            clonedAction.values.x = endRotation.x;
-            clonedAction.values.y = endRotation.y;
-            clonedAction.values.z = endRotation.z;
-            clonedAction.values.w = endRotation.w; //use euler anges if change action id to rotate
-            //clonedAction.values.destPosition = lookAtTarget;
+          //set direction to where the item is
+          clonedValues.x = endRotation.x;
+          clonedValues.y = endRotation.y;
+          clonedValues.z = endRotation.z;
+          clonedValues.w = endRotation.w; //use euler anges if change action id to rotate
+          //clonedAction.values.destPosition = lookAtTarget;
 
-              //hope conversion is safe within same sdk
-            clonedAction.actionId = "rotate-q" //if we get rid of rotate-q we must make sure rotate can handle playerPosition
+          //TODO need better recursive logic here
+          if(clonedValues.onComplete && clonedValues.onComplete.length > 0){
+            log("clonedAction.onComplete[0] " + clonedValues.onComplete[0].actionId )
+            clonedValues.onComplete[0].values.playerPosition=playerPosition
+          }
+          if(!clonedValues.targetOfInterest){
+            clonedValues.targetOfInterest = action.sender
           }else{
-            //did not work when tried but should work?!?! that is how ootb rotate did it?
-            //mabye cuz we are asking rotate fix. where ootb rotate just keeps rotating
-            //set direction to where the item is
-            clonedAction.values.x = endRotationEuler.x;
-            clonedAction.values.y = endRotationEuler.y;
-            clonedAction.values.z = endRotationEuler.z;
-            
-            clonedAction.actionId = "rotate"
+            log("facePlayer had sender already " + action.sender + " " + clonedValues.targetOfInterest + " " + channel.id)
           }
-
-          if(clonedAction.values.onComplete && clonedAction.values.onComplete.length > 0){
-            log("clonedAction.onComplete[0] " + clonedAction.values.onComplete[0].actionId )
-            clonedAction.values.onComplete[0].values.playerPosition=playerPosition
-          }
+          clonedValues.targetOfInterestType = 'player'
           
+          const clonedAction = channel.createAction("rotate-q",clonedValues)
 
+          //send rotate move so everyone else gets it
           channel.sendActions([clonedAction])
+        }else{
+          if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entity,null)
         }
       }else{
-        log("facePlayer called for " + target + " " + action.sender + " was not me " + channel.id + " so skipping" )
+        log("facePlayer called for " + target + " from " + action.sender + ". was not me " + channel.id + " so skipping" )
       }
     })
 
     // handle actions
     channel.handleAction<Tween>('move', (action) => {
       const { target, ...tween } = action.values
-      log("OOTB move called " + action.sender + " " + action.actionId + " " + action.entityName + " " + target + " " + tween.x + " " + tween.y + " " + tween.z );//+ "  " + action.values.marker)
+
+      const METHOD_NAME = "channel.handle.move"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + jsonStringifyActions(action) + " " + target + " " + tween.x + " " + tween.y + " " + tween.z, null)
+
+
       const sender = action.sender
       const entity = getEntityByName(target)
 
@@ -819,15 +808,15 @@ if(props.clickable){
             existingTweenble.y === action.values.y &&
             existingTweenble.z === action.values.z
           ) {
-            log("OOTB move same tween already in progress? " + action.sender + " " + action.actionId + " " + action.entityName + " " + target + " " + tween.x + " " + tween.y + " " + tween.z)
+            if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "action matching parameters already in progress. ignoring this one. existing tween:" + jsonStringifyTweenable(existingTweenble) + " new action " + jsonStringifyActions(action),null)
             return
           }
         }
 
         const origin = entity.getComponent(Transform).position.clone()
         const originQ:Quaternion=entity.getComponent(Transform).rotation.clone();
+        
         const tweenable = new TweenableMove({
-        //const tweenable = new Tweenable({
           ...tween,
           type: 'move',
           channel,
@@ -836,16 +825,20 @@ if(props.clickable){
           sender,
           timestamp: currentTime,
         })
+        if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "adding Tweenable Component to " + target + " " + jsonStringifyTweenable(tweenable),null)
         entity.addComponentOrReplace(tweenable)
         entity.addComponentOrReplace(new Syncable())
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entity,null)
       }
     })
 
     channel.handleAction<Tween>('rotate-q', (action) => {
-      
       const { target, ...tween } = action.values
 
-      log("rotate-q called " + action.sender + " " + action.actionId + " " + action.entityName + " " + target + " " + tween.x + " " + tween.y + " " + tween.z + " " + tween.speed + " " + tween.curve)
+      const METHOD_NAME = "channel.handle.rotate-q"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + target + tween.x + " " + tween.y + " " + tween.z + " " + tween.speed + " " + tween.curve, null)
 
       const sender = action.sender
       const entity = getEntityByName(target)
@@ -863,14 +856,14 @@ if(props.clickable){
             existingTweenble.z === action.values.z &&
             existingTweenble.w === action.values.w
           ) {
-            // same tween already in progress?
-            log("rotate-q same tween already in progress? " + action.sender + " " + action.actionId + " " + action.entityName + " " + target + " " + tween.x + " " + tween.y + " " + tween.z + " " + tween.speed + " " + tween.curve)
+            if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "action matching parameters already in progress. ignoring this one. existing tween:" + jsonStringifyTweenable(existingTweenble) + " new action " + jsonStringifyActions(action),null)
             return
           }
         }
-        const origin = entity.getComponent(Transform).rotation.clone()
-          .eulerAngles
-        const originQ = entity.getComponent(Transform).rotation.clone()
+        const rotOrigin = entity.getComponent(Transform).rotation.clone();
+        const origin = rotOrigin.eulerAngles
+        const originQ = rotOrigin
+
         const tweenable = new TweenableRotate({
           ...tween,
           type: 'rotate-q',
@@ -880,16 +873,20 @@ if(props.clickable){
           sender,
           timestamp: currentTime,
         })
+        if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "adding Tweenable Component to " + target + " " + jsonStringifyTweenable(tweenable),null)
         entity.addComponentOrReplace(tweenable)
         entity.addComponentOrReplace(new Syncable())
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entity,null)
       }
     })
 
     channel.handleAction<Tween>('rotate', (action) => {
-      
       const { target, ...tween } = action.values
 
-      log("OOTB rotate called " + tween.x + " " + tween.y + " " + tween.z + " " + tween.speed + " " + tween.curve)
+      const METHOD_NAME = "channel.handle.rotate"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + target + tween.x + " " + tween.y + " " + tween.z + " " + tween.speed + " " + tween.curve, null)
 
       const sender = action.sender
       const entity = getEntityByName(target)
@@ -906,14 +903,14 @@ if(props.clickable){
             existingTweenble.y === action.values.y &&
             existingTweenble.z === action.values.z
           ) {
-            // same tween already in progress?
-            log("OOTB rotate same tween already in progress? " + action.sender + " " + action.actionId + " " + action.entityName + " " + target + " " + tween.x + " " + tween.y + " " + tween.z)
+            if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "action matching parameters already in progress. ignoring this one. existing tween:" + jsonStringifyTweenable(existingTweenble) + " new action " + jsonStringifyActions(action),null)
             return
           }
         }
-        const origin = entity.getComponent(Transform).rotation.clone().eulerAngles
-        const originQ = entity.getComponent(Transform).rotation.clone()
-        //const tweenable = new Tweenable({
+        const rotOrigin = entity.getComponent(Transform).rotation.clone();
+        const origin = rotOrigin.eulerAngles
+        const originQ = rotOrigin
+
         const tweenable = new TweenableRotate({
           ...tween,
           type: 'rotate',
@@ -923,13 +920,21 @@ if(props.clickable){
           sender,
           timestamp: currentTime,
         })
+        if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "adding Tweenable Component to " + target + " " + jsonStringifyTweenable(tweenable),null)
         entity.addComponentOrReplace(tweenable)
         entity.addComponentOrReplace(new Syncable())
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entity,null)
       }
     })
 
     channel.handleAction<Tween>('scale', (action) => {
       const { target, ...tween } = action.values
+
+      const METHOD_NAME = "channel.handle.scale"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + target + tween.x + " " + tween.y + " " + tween.z + " " + tween.speed + " " + tween.curve, null)
+
       const sender = action.sender
       const entity = getEntityByName(target)
       if (entity && entity !== undefined) {
@@ -944,13 +949,13 @@ if(props.clickable){
             existingTweenble.y === action.values.y &&
             existingTweenble.z === action.values.z
           ) {
-            // same tween already in progress?
+            if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "action matching parameters already in progress. ignoring this one. existing tween:" + jsonStringifyTweenable(existingTweenble) + " new action " + jsonStringifyActions(action),null)
             return
           }
         }
         const origin = entity.getComponent(Transform).scale.clone()
         const originQ:Quaternion=null;
-        //const tweenable = new Tweenable({
+        
         const tweenable = new TweenableScale({
           ...tween,
           type: 'scale',
@@ -960,13 +965,21 @@ if(props.clickable){
           sender,
           timestamp: currentTime,
         })
+        if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  "adding Tweenable Component to " + target + " " + jsonStringifyTweenable(tweenable),null)
         entity.addComponentOrReplace(tweenable)
         entity.addComponentOrReplace(new Syncable())
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entity,null)
       }
     })
 
     channel.handleAction<AnimationValues>('animate', (action) => {
-      const { target, animation, animAction, speed, loop } = action.values
+      const { target, animation, animAction, speed, loop, layer } = action.values
+
+      const METHOD_NAME = "channel.handle.animate"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",[jsonStringifyActionsFull(action)] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called " + jsonStringifyActions(action) + " " + target, null)
+
       const sender = action.sender
       const entity = getEntityByName(target)
       if (entity && entity !== undefined) {
@@ -979,13 +992,22 @@ if(props.clickable){
           animator = new Animator()
           entity.addComponent(animator)
         }
+        let animData = null;
+        if (entity.hasComponent(AnimatedData)) {
+          animData = entity.getComponent(AnimatedData)
+          //TODO FIXME clips.length is not valid
+          log(METHOD_NAME + " " + animation + " found animData " + animData + " " + animData.clips.length)
+        }else{
+          log(METHOD_NAME + " " + animation + " found animData " + null)
+        }
+        const existingAnim = animData != null ? animData.clips[action.values.animation ] : null;
 
+        log(METHOD_NAME + " " + animation + " existingAnim " + existingAnim)
+            
         let currentAnim: string
         switch (animAction) {
           case 'play':
-            if (entity.hasComponent(Animated)) {
-              let existingAnim = entity.getComponent(Animated)
-
+            if(existingAnim){
               if (
                 existingAnim.sender !== action.sender &&
                 existingAnim.type == 'play' &&
@@ -997,57 +1019,73 @@ if(props.clickable){
                 break
               }
               if (existingAnim.type == 'play') {
+                // NEED PARAM FOR STOP ALL OTHERS OR NOT
+                //might need a Play from start vs play
                 // stop any other playing animations
-
                 animator.getClip(existingAnim.name).stop()
+                //animator.getClip(existingAnim.name).pause()
               }
             }
-
+            
             let animClip = animator.getClip(animation)
             animClip.looping = loop
             animClip.speed = speed
             animClip.playing = true
+            if(layer !== undefined && layer !== null) animClip.layer = layer
+
             const animated = new Animated({
               type: 'play',
               name: animation,
               speed: speed,
               loop: loop,
               channel,
+              layer: layer,
               sender,
               timestamp: currentTime,
             })
 
-            entity.addComponentOrReplace(animated)
+            //entity.addComponentOrReplace(animated)
+            if(animData == null){ 
+              animData = new AnimatedData({});
+              log(METHOD_NAME + " " + animation + " adding animData " + animData + " " + animData.clips.length)
+              entity.addComponentOrReplace(animData)
+            }
+            //TODO log replacement
+            animData.clips[ animated.name ] = animated
+            log(METHOD_NAME + " " + animation + " layer " + animClip.layer + " " + animData.clips.length)
+
             entity.addComponentOrReplace(new Syncable())
             break
           case 'stop':
-            if (!entity.hasComponent(Animated)) {
+            if (existingAnim == null) {
               break
             }
-            currentAnim = entity.getComponent(Animated).name
+            currentAnim = existingAnim.name
 
             animator.getClip(currentAnim).stop()
-            entity.getComponent(Animated).type = 'stop'
+            existingAnim.type = 'stop'
             break
           case 'pause':
-            if (!entity.hasComponent(Animated)) {
+            if (existingAnim == null) {
               break
             }
-            currentAnim = entity.getComponent(Animated).name
+            currentAnim = existingAnim.name
 
             animator.getClip(currentAnim).pause()
-            entity.getComponent(Animated).type = 'pause'
+            existingAnim.type = 'pause'
             break
           case 'reset':
-            if (!entity.hasComponent(Animated)) {
+            if (existingAnim == null) {
               break
             }
-            currentAnim = entity.getComponent(Animated).name
+            currentAnim = existingAnim.name
 
             animator.getClip(currentAnim).reset()
-            entity.getComponent(Animated).type = 'reset'
+            existingAnim.type = 'reset'
             break
         }
+      }else{
+        if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + target + " " + entity,null)
       }
     })
 
@@ -1096,8 +1134,12 @@ if(props.clickable){
 
     // sync initial values
     channel.request<SyncEntity[]>('syncEntities', (syncEntities) => {
+      const METHOD_NAME = "channel.request.syncEntities"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY", [syncEntities] )
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called. recieved " + (syncEntities ? syncEntities.length : null), null)
+
       for (const syncEntity of syncEntities) {
-        const { entityName, transform, tweenMove, tweenRotate, tweenScale, anim } = syncEntity
+        const { entityName, transform, tweenMove, tweenRotate, tweenScale, animData } = syncEntity
         const entity = getEntityByName(entityName)
         if (entity && entity !== undefined) {
           const original = entity.getComponent(Transform)
@@ -1108,11 +1150,10 @@ if(props.clickable){
           if( tweenMove && tweenMove !== undefined ) tweenArray.push(tweenMove)
           if( tweenRotate && tweenRotate !== undefined ) tweenArray.push(tweenRotate)
           if( tweenScale && tweenScale !== undefined ) tweenArray.push(tweenScale)
+          let addSyncable = false;
           for( const p in tweenArray){
             const tween = tweenArray[p]
             if (tween) {
-              log("got sync for " + entityName + " " + tween.type)
-              //CREATE RIGHT TYPE
               let tweenable = null;
               switch(tween.type){
                 case 'move': 
@@ -1152,52 +1193,77 @@ if(props.clickable){
                   break;
                 }
               }
-              /*
-              tweenable = new Tweenable({
-                  ...tween,
-                  channel,
-                })
-                */
-            //TODO sync PathData + RotationData
+              //TODO sync PathData + RotationData
               entity.addComponentOrReplace(tweenable) //TODO either need to move the followCurve into tween OR sync PathData + RotateData objects too
+              addSyncable = true;
             }
           }
-          if (anim) {
-            const animated = new Animated({
-              ...anim,
-              channel,
-            })
-            entity.addComponentOrReplace(animated)
-            let animator = new Animator()
-            entity.addComponentOrReplace(animator)
+          //does animation need syncable?
+          if (animData) {
+            for( const p in animData){
+              const anim = animData[p]
+              const animated = new Animated({
+                ...anim,
+                channel,
+              })
+              entity.addComponentOrReplace(animated)
+              
+              let animator:Animator = null;
+              if (false || entity.hasComponent(Animator)) {
+                log("found existing animator component");
+                animator = entity.getComponent(Animator)
+              } else {
+                animator = new Animator()
+              }
 
-            let animClip = animator.getClip(anim.name)
-            animClip.looping = anim.loop
-            animClip.speed = anim.speed
-            switch (anim.type) {
-              case 'play':
-                animClip.play()
-                break
-              case 'stop':
-                animClip.stop()
-                break
-              case 'pause':
-                animClip.pause()
-                break
-              case 'reset':
-                animClip.reset()
-                break
+              entity.addComponentOrReplace(animator)
+
+              const animClip = animator.getClip(anim.name)
+              log( anim.name + " animator.clip ");
+              animClip.looping = anim.loop
+              animClip.speed = anim.speed
+              if(anim.layer !== undefined && anim.layer !== null) animClip.layer = anim.layer;
+              switch (anim.type) {
+                case 'play':
+                  animClip.play()
+                  break
+                case 'stop':
+                  animClip.stop()
+                  break
+                case 'pause':
+                  animClip.pause()
+                  break
+                case 'reset':
+                  animClip.reset()
+                  break
+              }
             }
           }
+          if(addSyncable){
+            entity.addComponentOrReplace(new Syncable()) //make new player to be able to respond
+          }
+        }else{
+          if(logger.isWarnEnabled()) logger.warn( METHOD_NAME,  "Could not find " + " " + entityName + "; " + entity,null)
         }
       }
     })
     channel.reply<SyncEntity[]>('syncEntities', () => {
-      //add to getting the hidden entities
+      const METHOD_NAME = "channel.reply.syncEntities"
+      if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY",null )
+      //TODO add to getting the removed entities
       const entities = this.getEntities()
-      const allTweenClasses:ComponentConstructor<Tweenable>[] = [Tweenable,TweenableMove,TweenableRotate,TweenableScale]
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called. entities count " + (entities ? entities.length : null), null)
+
+      //const allTweenClasses:ComponentConstructor<Tweenable>[] = [Tweenable,TweenableMove,TweenableRotate,TweenableScale]
       
-      return entities.map((entity) => {
+      //TODO if entities is null or size 0 AND never called request throw error
+      //also re-register request action as probably removed. tricky as needs to do it after this method leaves
+      //sync and request keys are same. make diff keys to avoid removing the other?
+
+      const returnSyncEntity = entities.map((entity) => {
+        const METHOD_NAME = "channel.request.syncEntities.lambda"
+        if(logger.isTraceEnabled()) logger.trace( METHOD_NAME,"ENTRY", null )
+        if(logger.isDebugEnabled()) logger.debug( METHOD_NAME, "called ", null)
         const transform = entity.getComponent(Transform)
         const syncEntity: SyncEntity = {
           entityName: entity.name,
@@ -1216,47 +1282,71 @@ if(props.clickable){
             scale: [transform.scale.x, transform.scale.y, transform.scale.z],
           },
         }
+        /*
+        //TODO use this if can back in the member var to be assigned
         for(var x=0;x<allTweenClasses.length;x++){
           let component = allTweenClasses[x]
           //log("synch check for " + component.constructor.name)
           if (entity.hasComponent(component)) {
             //TODO sync PathData + RotationData
             const { channel: _, ...tween } = entity.getComponent(component)
-            log("sync check found for " + tween.type + " for " + entity.name );//+ " " + tween.)
+            //log("sync check found for " + tween.type + " for " + entity.name );//+ " " + tween.)
             //must set tween relating to tween type move,scale,rotate
             //syncEntity.tween = tween //sets all tween data
           }
-        }
+        }*/
         if (entity.hasComponent(TweenableMove)) {
           const { channel: _, ...tween } = entity.getComponent(TweenableMove)
-          log("sync check found for TweenableMove " + " " + tween.type + " "  + entity.name  );//+ " " + tween.)
+          //log("sync check found for TweenableMove " + " " + tween.type + " "  + entity.name  );//+ " " + tween.)
           //stuff any extra things into the tween before settings it
           if(entity.hasComponent(PathData)){
             const pathData = entity.getComponent(PathData)
             tween.pathOriginIndex = pathData.origin
           }
-          syncEntity.tweenMove = tween //sets all tween data
+          //FIXME need rotate data!? might be in the tween now?
+          syncEntity.tweenMove = tween //sets move tween data
           
         }
         if (entity.hasComponent(TweenableRotate)) {
           const { channel: _, ...tween } = entity.getComponent(TweenableRotate)
-          log("sync check found for TweenableRotate" + " " + tween.type + " "  + entity.name  );//+ " " + tween.)
-          syncEntity.tweenRotate = tween //sets all tween data
+          syncEntity.tweenRotate = tween //sets rotate tween data
         }
         if (entity.hasComponent(TweenableScale)) {
           const { channel: _, ...tween } = entity.getComponent(TweenableScale)
-          log("sync check found for TweenableScale" + " " + tween.type + " "  + entity.name  );//+ " " + tween.)
-          syncEntity.tweenScale = tween //sets all tween data
+          syncEntity.tweenScale = tween //sets scale tween data
         }
-        if (entity.hasComponent(Animated)) {
-          const { channel: _, ...anim } = entity.getComponent(Animated)
-          syncEntity.anim = anim
+        if (entity.hasComponent(AnimatedData)) {
+            if (entity.hasComponent(AnimatedData)) {
+            const { ...anim } = entity.getComponent(AnimatedData)
+            syncEntity.animData = anim.clips
+          }
         }
-
         return syncEntity
       })
+
+      if(logger.isDebugEnabled()) logger.debug( METHOD_NAME,  " returning " + (returnSyncEntity ? returnSyncEntity.length : null),null)
+
+      return returnSyncEntity
     })
 
     //TODO handle onStart
   }
 }
+function createTargetList(target: string, targets: any) {
+  const targetList = []
+  if (target && target !== undefined)
+    targetList.push(target)
+  if (targets && targets !== undefined) {
+    let targetsArr = targets.split(",")
+    for (const p in targetsArr) {
+      let targetsItm = targetsArr[p]
+      if (targetsItm && targetsItm.trim() != '') {
+        if(targetsItm.indexOf("^") != 0) targetsItm = "^"+targetsItm
+        if(targetsItm.indexOf("$") != targetsItm.length-1) targetsItm += "$"
+        targetList.push(new RegExp(targetsItm))
+      }
+    }
+  }
+  return targetList
+}
+
