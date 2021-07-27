@@ -4,7 +4,8 @@ export type Props = {
 
 export default class Button implements IScript<Props> {
   clip = new AudioClip('2e1c4446-c99a-4698-9e13-819d232ca849/sounds/click.mp3')
-  shape = new GLTFShape('2e1c4446-c99a-4698-9e13-819d232ca849/models/Black_Fantasy_Button.glb')
+  //using Teal_Fantasy_Button.glb over Black_Fantasy_Button.glb to save polycount
+  shape = new GLTFShape('2e1c4446-c99a-4698-9e13-819d232ca849/models/Teal_Fantasy_Button.glb')
   init() {}
 
   play(entity: Entity) {
